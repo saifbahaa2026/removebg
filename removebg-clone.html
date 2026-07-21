@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إزالة الخلفية</title>
+<style>
+  :root{
+    --bg:#F7F9FA;
+    --panel:#FFFFFF;
+    --ink:#1A1A1A;
+    --muted:#6B7280;
+    --line:#E2E5E8;
+    --yellow:#FFC83E;
+    --yellow-dark:#E6AC1E;
+    --blue:#2F6FED;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system, 'Segoe UI', Tahoma, Arial, sans-serif;
+    min-height:100vh;
+  }
+  header{
+    display:flex; align-items:center; justify-content:center;
+    padding:22px 16px; border-bottom:1px solid var(--line); background:var(--panel);
+  }
+  .logo{display:flex; align-items:center; gap:8px; font-weight:800; font-size:20px;}
+  .logo .dot{width:12px; height:12px; border-radius:50%; background:var(--yellow); border:2px solid var(--ink);}
+
+  main{max-width:820px; margin:0 auto; padding:40px 16px 90px; text-align:center;}
+  h1{font-size:clamp(20px,4vw,28px); margin:0 0 26px; font-weight:800;}
+
+  .dropzone{
+    border:2px dashed var(--line);
+    border-radius:16px;
+    background:var(--panel);
+    padding:60px 24px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .dropzone.drag{ border-color:var(--yellow-dark); background:#FFFBEF; }
+  .upload-btn{
+    display:inline-flex; align-items:center; gap:10px;
+    background:var(--yellow); color:var(--ink); border:none;
+    padding:16px 32px; border-radius:10px; font-size:16px; font-weight:800;
+    cursor:pointer; margin-bottom:14px;
+  }
+  .upload-btn:hover{ background:var(--yellow-dark); }
+  .dz-sub{ color:var(--muted); font-size:14px; }
+  #fileInput, #bgFileInput{ display:none; }
+
+  .workspace{ display:none; margin-top:8px; text-align:center; }
+  .workspace.active{ display:block; }
+
+  .preview-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px;
+    margin-bottom:16px;
+  }
+  .frame{
+    border-radius:9px; overflow:hidden; margin:0 auto;
+    background-image:
+      linear-gradient(45deg, #eee 25%, transparent 25%),
+      linear-gradient(-45deg, #eee 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #eee 75%),
+      linear-gradient(-45deg, transparent 75%, #eee 75%);
+    background-size:16px 16px;
+    background-position:0 0, 0 8px, 8px -8px, -8px 0px;
+    background-color:#fafafa;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  #finalCanvas{ max-width:100%; max-height:60vh; display:block; }
+  #pickHint{
+    position:absolute; bottom:8px; right:8px; left:8px;
+    background:rgba(26,26,26,0.82); color:#fff; font-size:12px;
+    padding:7px 10px; border-radius:8px; pointer-events:none;
+  }
+
+  .tabbar{
+    display:flex; gap:6px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:6px; margin-bottom:14px;
+  }
+  .tab{
+    flex:1; padding:10px 8px; border-radius:8px; border:none; background:transparent;
+    font-family:inherit; font-weight:700; font-size:13.5px; color:var(--muted); cursor:pointer;
+  }
+  .tab.active{ background:var(--ink); color:#fff; }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px;
+    text-align:right; display:none; margin-bottom:14px;
+  }
+  .panel.active{ display:block; }
+
+  .field{ margin-bottom:16px; }
+  .field-label{ display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px; }
+  .field-label span.val{ color:var(--muted); font-weight:500; }
+  input[type=range]{ width:100%; accent-color:var(--yellow-dark); }
+
+  .swatches{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .swatch{
+    width:34px; height:34px; border-radius:9px; border:2px solid var(--line); cursor:pointer; padding:0;
+  }
+  .swatch.transparent{
+    background-image:
+      linear-gradient(45deg, #ccc 25%, transparent 25%),
+      linear-gradient(-45deg, #ccc 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #ccc 75%),
+      linear-gradient(-45deg, transparent 75%, #ccc 75%);
+    background-size:10px 10px; background-position:0 0, 0 5px, 5px -5px, -5px 0px; background-color:#fff;
+  }
+  .swatch.selected{ border-color:var(--blue); }
+  .row{ display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  input[type=color]{ width:44px; height:34px; border-radius:8px; border:1px solid var(--line); padding:0; cursor:pointer; }
+  .btn-line{
+    padding:9px 14px; border-radius:8px; border:1px solid var(--line); background:#fff;
+    font-family:inherit; font-size:13px; font-weight:700; cursor:pointer; color:var(--ink);
+  }
+  .btn-line:hover{ border-color:var(--ink); }
+  .hint{ font-size:12px; color:var(--muted); line-height:1.7; margin-top:4px; }
+
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn{
+    flex:1; min-width:160px; padding:13px 18px; border-radius:10px; border:none;
+    font-weight:800; font-size:15px; cursor:pointer;
+  }
+  .btn-primary{ background:var(--yellow); color:var(--ink); }
+  .btn-primary:hover{ background:var(--yellow-dark); }
+  .btn-ghost{ background:transparent; border:1px solid var(--line); color:var(--muted); }
+  .btn-ghost:hover{ border-color:var(--ink); color:var(--ink); }
+
+  footer{ text-align:center; padding:24px 16px; color:var(--muted); font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="dot"></span> إزالة الخلفية</div>
+</header>
+
+<main>
+  <div id="uploadStage">
+    <h1>ارفع صورة عشان تزيل خلفيتها</h1>
+    <div class="dropzone" id="dropzone">
+      <button class="upload-btn" type="button">⬆ رفع صورة</button>
+      <div class="dz-sub">أو اسحب ملف هنا · JPG, PNG, WEBP</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+  </div>
+
+  <div class="workspace" id="workspace">
+
+    <div class="preview-card">
+      <div class="frame">
+        <canvas id="finalCanvas"></canvas>
+        <div id="pickHint">اضغط على الخلفية بالصورة لاختيار لونها</div>
+      </div>
+    </div>
+
+    <div class="tabbar">
+      <button class="tab active" data-tab="cutout">القص</button>
+      <button class="tab" data-tab="background">الخلفية</button>
+      <button class="tab" data-tab="adjust">تعديل</button>
+    </div>
+
+    <div class="panel active" id="panel-cutout">
+      <div class="field">
+        <div class="field-label"><span>التفاوت اللوني</span><span class="val" id="toleranceVal">40</span></div>
+        <input type="range" id="tolerance" min="1" max="150" value="40">
+      </div>
+      <div class="field">
+        <div class="field-label"><span>نعومة الحواف</span><span class="val" id="featherVal">28</span></div>
+        <input type="range" id="feather" min="0" max="100" value="28">
+      </div>
+      <div class="row" style="align-items:flex-start;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:700; cursor:pointer;">
+          <input type="checkbox" id="highRes" style="width:16px; height:16px;">
+          معالجة بالدقة الأصلية الكاملة (أبطأ، وأدق بالتفاصيل)
+        </label>
+      </div>
+      <div class="hint">اضغط داخل الصورة أعلاه على لون الخلفية لتحديده، ثم اضبط التفاوت حتى تختفي الخلفية بالكامل.</div>
+    </div>
+
+    <div class="panel" id="panel-background">
+      <div class="swatches" id="bgSwatches">
+        <button class="swatch transparent selected" data-bg="transparent" title="شفافة"></button>
+        <button class="swatch" data-bg="#FFFFFF" style="background:#FFFFFF" title="أبيض"></button>
+        <button class="swatch" data-bg="#000000" style="background:#000000" title="أسود"></button>
+        <button class="swatch" data-bg="#2F6FED" style="background:#2F6FED" title="أزرق"></button>
+        <button class="swatch" data-bg="#E85C4A" style="background:#E85C4A" title="أحمر"></button>
+        <button class="swatch" data-bg="#2BD576" style="background:#2BD576" title="أخضر"></button>
+        <button class="swatch" data-bg="#FFC83E" style="background:#FFC83E" title="أصفر"></button>
+      </div>
+      <div class="row">
+        <input type="color" id="customColor" value="#2F6FED">
+        <button class="btn-line" id="useCustomColor">استخدام هذا اللون</button>
+      </div>
+      <div class="row">
+        <button class="btn-line" id="uploadBgBtn">⬆ رفع صورة خلفية</button>
+        <input type="file" id="bgFileInput" accept="image/*">
+        <button class="btn-line" id="clearBgImage" style="display:none;">إزالة صورة الخلفية</button>
+      </div>
+      <div class="hint">اختر خلفية شفافة، لون ثابت، أو ارفع صورة تصير خلفية جديدة خلف الموضوع.</div>
+    </div>
+
+    <div class="panel" id="panel-adjust">
+      <div class="field">
+        <div class="field-label"><span>السطوع</span><span class="val" id="brightnessVal">100%</span></div>
+        <input type="range" id="brightness" min="50" max="150" value="100">
+      </div>
+      <div class="field">
+        <div class="field-label"><span>التباين</span><span class="val" id="contrastVal">100%</span></div>
+        <input type="range" id="contrast" min="50" max="150" value="100">
+      </div>
+      <div class="field">
+        <div class="field-label"><span>التشبع اللوني</span><span class="val" id="saturateVal">100%</span></div>
+        <input type="range" id="saturate" min="0" max="200" value="100">
+      </div>
+      <div class="hint">التعديلات تطبق على الموضوع بعد القص، قبل التنزيل.</div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="downloadBtn">⬇ تنزيل PNG</button>
+      <button class="btn btn-ghost" id="resetBtn">صورة جديدة</button>
+    </div>
+  </div>
+</main>
+
+<footer>تطوير: المهندس سيف بهاء عبد اللطيف — أداة محلية بالكامل، بدون تسجيل دخول</footer>
+
+<script>
+(function(){
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const uploadStage = document.getElementById('uploadStage');
+  const workspace = document.getElementById('workspace');
+
+  const finalCanvas = document.getElementById('finalCanvas');
+  const finalCtx = finalCanvas.getContext('2d');
+  const pickHint = document.getElementById('pickHint');
+
+  // Off-screen working canvases
+  const srcCanvas = document.createElement('canvas');       // original image, untouched
+  const srcCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
+  const cutoutCanvas = document.createElement('canvas');    // cutout result (transparent bg)
+  const cutoutCtx = cutoutCanvas.getContext('2d');
+
+  const toleranceInput = document.getElementById('tolerance');
+  const featherInput = document.getElementById('feather');
+  const toleranceVal = document.getElementById('toleranceVal');
+  const featherVal = document.getElementById('featherVal');
+  const highResInput = document.getElementById('highRes');
+
+  const brightnessInput = document.getElementById('brightness');
+  const contrastInput = document.getElementById('contrast');
+  const saturateInput = document.getElementById('saturate');
+  const brightnessVal = document.getElementById('brightnessVal');
+  const contrastVal = document.getElementById('contrastVal');
+  const saturateVal = document.getElementById('saturateVal');
+
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const tabs = document.querySelectorAll('.tab');
+  const panels = {
+    cutout: document.getElementById('panel-cutout'),
+    background: document.getElementById('panel-background'),
+    adjust: document.getElementById('panel-adjust')
+  };
+
+  const bgSwatches = document.querySelectorAll('#bgSwatches .swatch');
+  const customColor = document.getElementById('customColor');
+  const useCustomColor = document.getElementById('useCustomColor');
+  const uploadBgBtn = document.getElementById('uploadBgBtn');
+  const bgFileInput = document.getElementById('bgFileInput');
+  const clearBgImage = document.getElementById('clearBgImage');
+
+  let baseImageData = null;   // original pixels
+  let pickedColor = null;     // {r,g,b} background color to remove
+  let bgMode = 'transparent'; // 'transparent' | 'color' | 'image'
+  let bgColor = '#FFFFFF';
+  let bgImage = null;         // Image object
+  let activeTab = 'cutout';
+  let lastFile = null;
+
+  function loadImageFile(file){
+    if(!file || !file.type.startsWith('image/')) return;
+    lastFile = file;
+    const MAX_DIM = highResInput.checked ? 4000 : 1200;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = function(){
+      let w = img.width, h = img.height;
+      if(w > MAX_DIM || h > MAX_DIM){
+        const scale = MAX_DIM / Math.max(w,h);
+        w = Math.round(w*scale); h = Math.round(h*scale);
+      }
+      srcCanvas.width = w; srcCanvas.height = h;
+      srcCtx.clearRect(0,0,w,h);
+      srcCtx.drawImage(img, 0, 0, w, h);
+      baseImageData = srcCtx.getImageData(0,0,w,h);
+
+      cutoutCanvas.width = w; cutoutCanvas.height = h;
+      finalCanvas.width = w; finalCanvas.height = h;
+
+      URL.revokeObjectURL(url);
+
+      const d = baseImageData.data;
+      pickedColor = { r:d[0], g:d[1], b:d[2] };
+
+      computeCutout();
+      compositeFinal();
+
+      uploadStage.style.display = 'none';
+      workspace.classList.add('active');
+      setTab('cutout');
+    };
+    img.src = url;
+  }
+
+  // Step 1: compute cutoutCanvas (transparent background) from baseImageData + pickedColor
+  function computeCutout(){
+    if(!baseImageData || !pickedColor) return;
+    const w = baseImageData.width, h = baseImageData.height;
+    const out = cutoutCtx.createImageData(w, h);
+    const src = baseImageData.data;
+    const dst = out.data;
+    const tol = parseInt(toleranceInput.value, 10);
+    const feather = parseInt(featherInput.value, 10) + 1;
+    const {r:pr, g:pg, b:pb} = pickedColor;
+
+    for(let i=0; i<src.length; i+=4){
+      const r = src[i], g = src[i+1], b = src[i+2], a = src[i+3];
+      const dr = r-pr, dg = g-pg, db = b-pb;
+      const dist = Math.sqrt(dr*dr+dg*dg+db*db);
+      let alpha;
+      if(dist <= tol) alpha = 0;
+      else if(dist >= tol + feather) alpha = 255;
+      else alpha = Math.round(((dist - tol) / feather) * 255);
+      dst[i] = r; dst[i+1] = g; dst[i+2] = b;
+      dst[i+3] = Math.min(a, alpha);
+    }
+    cutoutCtx.clearRect(0,0,w,h);
+    cutoutCtx.putImageData(out, 0, 0);
+  }
+
+  // Step 2: draw background layer + cutout (with adjust filters) onto finalCanvas
+  function compositeFinal(){
+    const w = cutoutCanvas.width, h = cutoutCanvas.height;
+    if(!w || !h) return;
+    finalCtx.clearRect(0,0,w,h);
+
+    if(bgMode === 'color'){
+      finalCtx.fillStyle = bgColor;
+      finalCtx.fillRect(0,0,w,h);
+    } else if(bgMode === 'image' && bgImage){
+      // cover-fit the background image
+      const ir = bgImage.width / bgImage.height;
+      const cr = w / h;
+      let dw, dh, dx, dy;
+      if(ir > cr){ dh = h; dw = h*ir; dx = (w-dw)/2; dy = 0; }
+      else { dw = w; dh = w/ir; dx = 0; dy = (h-dh)/2; }
+      finalCtx.drawImage(bgImage, dx, dy, dw, dh);
+    }
+    // else transparent: leave as-is (checkerboard shows through CSS)
+
+    const b = brightnessInput.value, c = contrastInput.value, s = saturateInput.value;
+    finalCtx.filter = 'brightness(' + b + '%) contrast(' + c + '%) saturate(' + s + '%)';
+    finalCtx.drawImage(cutoutCanvas, 0, 0);
+    finalCtx.filter = 'none';
+  }
+
+  function pickColorAt(clientX, clientY){
+    const rect = finalCanvas.getBoundingClientRect();
+    const scaleX = baseImageData.width / rect.width;
+    const scaleY = baseImageData.height / rect.height;
+    const x = Math.floor((clientX - rect.left) * scaleX);
+    const y = Math.floor((clientY - rect.top) * scaleY);
+    if(x < 0 || y < 0 || x >= baseImageData.width || y >= baseImageData.height) return;
+    const idx = (y * baseImageData.width + x) * 4;
+    const d = baseImageData.data;
+    pickedColor = { r:d[idx], g:d[idx+1], b:d[idx+2] };
+    computeCutout();
+    compositeFinal();
+  }
+
+  function setTab(name){
+    activeTab = name;
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    Object.keys(panels).forEach(k => panels[k].classList.toggle('active', k === name));
+    pickHint.style.display = (name === 'cutout') ? 'block' : 'none';
+    finalCanvas.style.cursor = (name === 'cutout') ? 'crosshair' : 'default';
+  }
+
+  // Upload handlers
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => loadImageFile(e.target.files[0]));
+  ['dragenter','dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', e => loadImageFile(e.dataTransfer.files[0]));
+
+  // Eyedropper (only meaningful on cutout tab)
+  finalCanvas.addEventListener('click', e => {
+    if(activeTab !== 'cutout') return;
+    pickColorAt(e.clientX, e.clientY);
+  });
+
+  // Cutout controls
+  toleranceInput.addEventListener('input', () => {
+    toleranceVal.textContent = toleranceInput.value;
+    computeCutout(); compositeFinal();
+  });
+  featherInput.addEventListener('input', () => {
+    featherVal.textContent = featherInput.value;
+    computeCutout(); compositeFinal();
+  });
+  highResInput.addEventListener('change', () => {
+    if(lastFile) loadImageFile(lastFile);
+  });
+
+  // Tabs
+  tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+  // Background controls
+  bgSwatches.forEach(sw => sw.addEventListener('click', () => {
+    bgSwatches.forEach(s => s.classList.remove('selected'));
+    sw.classList.add('selected');
+    const val = sw.dataset.bg;
+    if(val === 'transparent'){ bgMode = 'transparent'; }
+    else { bgMode = 'color'; bgColor = val; }
+    compositeFinal();
+  }));
+  useCustomColor.addEventListener('click', () => {
+    bgSwatches.forEach(s => s.classList.remove('selected'));
+    bgMode = 'color';
+    bgColor = customColor.value;
+    compositeFinal();
+  });
+  uploadBgBtn.addEventListener('click', () => bgFileInput.click());
+  bgFileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      bgImage = img;
+      bgMode = 'image';
+      bgSwatches.forEach(s => s.classList.remove('selected'));
+      clearBgImage.style.display = 'inline-block';
+      URL.revokeObjectURL(url);
+      compositeFinal();
+    };
+    img.src = url;
+  });
+  clearBgImage.addEventListener('click', () => {
+    bgImage = null;
+    bgMode = 'transparent';
+    document.querySelector('.swatch.transparent').classList.add('selected');
+    clearBgImage.style.display = 'none';
+    compositeFinal();
+  });
+
+  // Adjust controls
+  brightnessInput.addEventListener('input', () => { brightnessVal.textContent = brightnessInput.value + '%'; compositeFinal(); });
+  contrastInput.addEventListener('input', () => { contrastVal.textContent = contrastInput.value + '%'; compositeFinal(); });
+  saturateInput.addEventListener('input', () => { saturateVal.textContent = saturateInput.value + '%'; compositeFinal(); });
+
+  // Reset
+  resetBtn.addEventListener('click', () => {
+    baseImageData = null; pickedColor = null; bgImage = null; lastFile = null;
+    bgMode = 'transparent';
+    bgSwatches.forEach(s => s.classList.remove('selected'));
+    document.querySelector('.swatch.transparent').classList.add('selected');
+    clearBgImage.style.display = 'none';
+    workspace.classList.remove('active');
+    uploadStage.style.display = 'block';
+    fileInput.value = '';
+    setTab('cutout');
+  });
+
+  // Download final composited PNG
+  downloadBtn.addEventListener('click', () => {
+    if(!baseImageData) return;
+    finalCanvas.toBlob(blob => {
+      const link = document.createElement('a');
+      link.download = 'result.png';
+      link.href = URL.createObjectURL(blob);
+      link.click();
+    }, 'image/png');
+  });
+})();
+</script>
+</body>
+</html>
